@@ -13,8 +13,11 @@
     <arg name="save" default=""/>
     <arg name="wait_ms" default="10"/>
 
-    <arg name="data" default="vk2"/>
-    <arg name="data_dir" default="/home/chao/Workspace/dataset/vkitti/Scene01/clone"/>
+    <arg name="data" default="airsim"/>
+    <arg name="data_dir" default="/home/jzhang72/NetBeansProjects/ROS_Fast_DSO/ros_ws/dataset/mapping_article_airsim/images/"/>
+    <!--<arg name="data_dir" default="/home/jzhang72/NetBeansProjects/ROS_Fast_DSO/ros_ws/dataset/realsense/indoor_1/"/> -->
+    <!--<arg name="data" default="vk2"/> -->
+    <!-- <arg name="data_dir" default="/home/chao/Workspace/dataset/vkitti/Scene01/clone"/> -->
     <!-- <arg name="data_dir" default="/home/chao/Workspace/dataset/kitti/dataset/sequences/00"/> -->
     <!-- <arg name="data_dir" default="/home/chao/Workspace/dataset/tartan_air/gascola/Easy/P003"/> -->
     <arg name="data_max_depth" default="100.0"/>
@@ -41,4 +44,6 @@
         <param name="end" type="int" value="$(arg end)"/>
         <param name="reverse" type="bool" value="$(arg reverse)"/>
     </node>
+    
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find dsol)/launch/dsol.rviz" />
 </launch>

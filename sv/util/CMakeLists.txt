@@ -87,7 +87,8 @@ cc_test(
 cc_library(
   NAME util_dataset
   SRCS "dataset.cpp"
-  DEPS sv_util_ocv Eigen3::Eigen Sophus::Sophus absl::flat_hash_map
+#  DEPS sv_util_ocv Eigen3::Eigen Sophus::Sophus absl::flat_hash_map
+  DEPS sv_util_ocv Eigen3::Eigen absl::flat_hash_map #Sophus::Sophus
   DEFINES XTENSOR_FOUND=${xtensor_FOUND})
 if(xtensor_FOUND)
   target_link_libraries(sv_util_dataset PUBLIC xtensor)

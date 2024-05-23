@@ -100,7 +100,7 @@ void Keyframe2Cloud(const Keyframe& keyframe,
 
       const auto& point = points.at(gr, gc);
       // Only draw points with max info and within max depth
-      if (!point.InfoMax() || (1.0 / point.idepth()) > max_depth) {
+      if (!point.InfoMax() || (1.0 / point.idepth()) > max_depth || (1.0 / point.idepth()) < 0) {
         ptr[0] = ptr[1] = ptr[2] = kNaNF;
         continue;
       }

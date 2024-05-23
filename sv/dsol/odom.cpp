@@ -7,6 +7,8 @@
 #include "sv/util/ocv.h"
 #include "sv/util/summary.h"
 
+#include <boost/filesystem.hpp>
+
 namespace sv::dsol {
 
 namespace {
@@ -547,6 +549,13 @@ void DirectOdometry::Summarize(bool new_kf) const {
   }
 
   LOG_EVERY_N(INFO, cfg_.log) << ts.ReportAll(true);
+  std::string filename("DSOL_times_ms.txt");
+  std::fstream file;
+  file.open(filename, std::ios_base::app | std::ios_base::in);
+  if (file.is_open()) {
+      file << ts.ReportAll(true);
+      file << "\n";
+  }
 }
 
 void DirectOdometry::DrawFrame(const cv::Mat& depth) const {

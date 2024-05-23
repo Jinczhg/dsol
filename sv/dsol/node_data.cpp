@@ -11,6 +11,11 @@
 #include "sv/util/logging.h"
 #include "sv/util/ocv.h"
 
+#include <sensor_msgs/Image.h>
+#include <cv_bridge/cv_bridge.h>
+#include <boost/filesystem.hpp>
+#include <boost/foreach.hpp>
+
 namespace sv::dsol {
 
 using SE3d = Sophus::SE3d;
@@ -24,18 +29,27 @@ struct NodeData {
   void InitOdom();
   void InitRosIO();
   void InitDataset();
+  void InitPcdFile();
 
   void PublishOdom(const std_msgs::Header& header, const Sophus::SE3d& Twc);
   void PublishCloud(const std_msgs::Header& header) const;
+  void PublishImageL(const std_msgs::Header& header, auto imageL) const;
+  void PublishImageR(const std_msgs::Header& header, auto imageR) const;
   void SendTransform(const gm::PoseStamped& pose_msg,
                      const std::string& child_frame);
+  
+  void SavePointCloud(sensor_msgs::PointCloud2& cloud) const;
   void Run();
 
   bool reverse_{false};
   double freq_{10.0};
   double data_max_depth_{0};
-  double cloud_max_depth_{100};
+  double cloud_max_depth_{150};
   cv::Range data_range_{0, 0};
+  
+  std::string pcdFileName;
+  std::ofstream pcdFile;
+  mutable int ptCnt;
 
   Dataset dataset_;
   MotionModel motion_;
@@ -55,12 +69,16 @@ struct NodeData {
   PosePathPublisher odom_pub_;
 
   ros::Publisher points_pub_;
+  
+  ros::Publisher image_l_pub_;
+  ros::Publisher image_r_pub_;
 };
 
 NodeData::NodeData(const ros::NodeHandle& pnh) : pnh_{pnh} {
   InitRosIO();
   InitDataset();
   InitOdom();
+  InitPcdFile();
 
   const int wait_ms = pnh_.param<int>("wait_ms", 0);
   ROS_INFO_STREAM("wait_ms: " << wait_ms);
@@ -93,6 +111,8 @@ void NodeData::InitRosIO() {
   points_pub_ = pnh_.advertise<sm::PointCloud2>("points", 1);
   pose_array_pub_ = pnh_.advertise<gm::PoseArray>("poses", 1);
   align_marker_pub_ = pnh_.advertise<vm::Marker>("align_graph", 1);
+  image_l_pub_ = pnh_.advertise<sm::Image>("image_l", 1);
+  image_r_pub_ = pnh_.advertise<sm::Image>("image_r", 1);
 }
 
 void NodeData::InitDataset() {
@@ -139,6 +159,36 @@ void NodeData::InitOdom() {
   ROS_INFO_STREAM(odom_.Repr());
 }
 
+void NodeData::InitPcdFile() {
+  
+  pcdFileName = "/home/jzhang72/NetBeansProjects/ROS_Fast_DSO/ros_ws/output/pointCloud_dsol.pcd";
+  pcdFile.open(pcdFileName);
+  ptCnt = 0;
+  const int countSpace = 19;
+  if (boost::filesystem::exists(pcdFileName)) {
+    
+    pcdFile << R"__(# .PCD v0.6 - Point Cloud Data file format
+VERSION 0.7
+FIELDS x y z rgb
+SIZE 4 4 4 4
+TYPE F F F U
+COUNT 1 1 1 1
+WIDTH 0)__" +
+            std::string(countSpace - 1, ' ') +
+            R"__(
+HEIGHT 1
+#VIEWPOINT 0 0 0 1 0 0 0
+POINTS 0)__" +
+            std::string(countSpace - 1, ' ') +
+            R"__(
+DATA ascii
+)__";
+    
+  }
+  pcdFile.flush();
+  pcdFile.close();
+}
+
 void NodeData::PublishCloud(const std_msgs::Header& header) const {
   if (points_pub_.getNumSubscribers() == 0) return;
 
@@ -150,6 +200,50 @@ void NodeData::PublishCloud(const std_msgs::Header& header) const {
   ROS_DEBUG_STREAM(odom_.window.MargKf().status().Repr());
   Keyframe2Cloud(odom_.window.MargKf(), cloud, cloud_max_depth_);
   points_pub_.publish(cloud);
+  this->SavePointCloud(cloud);
+}
+
+void NodeData::SavePointCloud(sensor_msgs::PointCloud2& cloud) const {
+      
+  // save point cloud to a PCD file
+  std::ofstream pcd;
+  const int countSpace = 19;
+  const int countPos = 118;
+  const int countPos2 = 179;
+  if (boost::filesystem::exists(pcdFileName)) {
+    pcd.open(pcdFileName, std::ios_base::app);
+    for(int i = 0 ; i < cloud.width * cloud.height; ++i){
+       auto* ptr = reinterpret_cast<float*>(cloud.data.data() + i * cloud.point_step);
+       if (std::isnan(ptr[0]) or std::isnan(ptr[1]) or std::isnan(ptr[2]))
+           continue;
+       ptCnt++;
+       ptr[3] = ptr[3]*255.0;
+       uint32_t rgb = ((uint32_t) ptr[3] << 16 | (uint32_t) ptr[3] << 8 | (uint32_t) ptr[3]);
+       pcd << ptr[0] << " " << ptr[1] << " " << ptr[2] << " " << rgb << "\n";
+    }
+    std::cout << "Writing " << ptCnt << " points to the PCD file." << std::endl;
+    // Update the total points in the PCD file every time.
+    std::fstream fs(pcdFileName);
+    std::string emplacedValue = std::to_string(ptCnt);
+    emplacedValue += std::string(countSpace - emplacedValue.length(), ' ');
+    fs.seekp(countPos) << emplacedValue;
+    fs.seekp(countPos2) << emplacedValue;
+    fs.close();
+  }
+  pcd.flush();
+  pcd.close();
+}
+
+void NodeData::PublishImageL(const std_msgs::Header& header, auto image_l) const {
+  if (image_l_pub_.getNumSubscribers() == 0) return;
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header, "bgr8", image_l).toImageMsg();
+  image_l_pub_.publish(msg);
+}
+
+void NodeData::PublishImageR(const std_msgs::Header& header, auto image_r) const {
+  if (image_r_pub_.getNumSubscribers() == 0) return;
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header, "bgr8", image_r).toImageMsg();
+  image_r_pub_.publish(msg);
 }
 
 void NodeData::SendTransform(const geometry_msgs::PoseStamped& pose_msg,
@@ -239,10 +333,36 @@ void NodeData::Run() {
       ROS_WARN_STREAM("Tracking failed (or 1st frame), slow motion model");
       motion_.Scale(0.5);
     }
+    
+    // Write depth data
+//    float sumDepth = 0;
+//    float validPixel = 0;
+//    const Keyframe& keyframe = odom_.window.MargKf();
+//    const auto& points = keyframe.points();
+//    for (int gr = 0; gr < points.rows(); ++gr) {
+//      for (int gc = 0; gc < points.cols(); ++gc) {
+//        const auto& point = points.at(gr, gc);
+//        // Only draw points with max info and within max depth
+//        if (!point.InfoMax() || (1.0 / point.idepth()) > cloud_max_depth_) {
+//          continue;
+//        }
+//        sumDepth += (float)point.pt().z();
+//        validPixel++;
+//      }
+//    }
+    
+//    if (validPixel > 0) {
+//        float avgDepth = sumDepth / validPixel;
+//        std::ofstream file;
+//        file.open("avg_frame_depth.txt", std::ios::app | std::ios::out);
+//        if (file.is_open())
+//            file << avgDepth << std::endl;
+//        file.close();
+//    }
 
     // Write to output
     writer_.Write(cnt, status.Twc());
-
+    
     ROS_DEBUG_STREAM("trans gt:   " << T_c0_c_gt.translation().transpose());
     ROS_DEBUG_STREAM("trans pred: " << T_pred.translation().transpose());
     ROS_DEBUG_STREAM("trans odom: " << status.Twc().translation().transpose());
@@ -261,8 +381,10 @@ void NodeData::Run() {
 
     if (status.map.remove_kf) {
       PublishCloud(header);
+      PublishImageL(header, image_l);
+      PublishImageR(header, image_r);
     }
-
+    
     // Draw align graph
     //    align_marker.header = header;
     //    DrawAlignGraph(status.Twc().translation(),

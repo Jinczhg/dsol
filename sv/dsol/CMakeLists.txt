@@ -70,7 +70,8 @@ cc_bench(
 cc_library(
   NAME dsol_frame
   SRCS "frame.cpp"
-  DEPS sv_dsol_image sv_dsol_point sv_dsol_camera Sophus::Sophus absl::span
+#  DEPS sv_dsol_image sv_dsol_point sv_dsol_camera Sophus::Sophus absl::span
+  DEPS sv_dsol_image sv_dsol_point sv_dsol_camera absl::span #Sophus::Sophus
   LINKOPTS sv_util_tbb)
 cc_test(
   NAME dsol_frame_test

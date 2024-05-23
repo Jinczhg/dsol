@@ -14,6 +14,7 @@
 #include "sv/dsol/node_util.h"
 #include "sv/dsol/odom.h"
 #include "sv/ros1/msg_conv.h"
+#include "sv/util/logging.h"
 
 namespace sv::dsol {
 
@@ -64,7 +65,7 @@ struct NodeOdom {
   ros::Publisher pub_points_;
   ros::Publisher pub_parray_;
   PosePathPublisher pub_odom_;
-
+  
   MotionModel motion_;
   DirectOdometry odom_;
 

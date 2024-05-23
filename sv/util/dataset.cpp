@@ -63,7 +63,7 @@ bool ReadStereoData(const fs::path& left_path,
   const auto left_files = GetFiles(left_path, ext, true);
 
   if (left_files.empty()) {
-    LOG(WARNING) << "No files found in right_path: " << left_path;
+    LOG(WARNING) << "No files found in left_path: " << left_path;
   } else {
     VectorExtend(files, left_files);
   }
@@ -718,6 +718,8 @@ std::string ExtractDatasetName(const std::string& data_dir) {
     name = "tartan_air";
   } else if (absl::StrContains(data_dir, "realsense")) {
     name = "realsense";
+  } else if (absl::StrContains(data_dir, "airsim")) {
+    name = "airsim";
   }
 
   return name;
@@ -744,7 +746,10 @@ Dataset CreateDataset(const std::string& data_dir, std::string name) {
     ds = TartanAir(data_dir);
   } else if (name == "realsense") {
     ds = StereoFolder::Create(name, data_dir, "infra1", "infra2", "calib.txt");
-  } else {
+  } else if (name == "airsim") {
+    ds = StereoFolder::Create(name, data_dir, "front_left", "front_right", "calib.txt");
+  }
+  else {
     LOG(WARNING) << fmt::format("Invalid dataset name: {}", name);
   }
 
